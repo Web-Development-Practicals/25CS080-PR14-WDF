@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Admin Dashboard (RBAC & Fetch CRUD)</title>
+ <style>
+ body { font-family: Arial, sans-serif; margin: 20px; background:
+#f4f6f9; }
+ header { display: flex; justify-content: space-between; alignitems: center; background: #343a40; padding: 10px 20px; color: #fff;
+border-radius: 5px; }
+ nav ul { list-style: none; margin: 0; padding: 0; display: flex;
+gap: 15px; }
+ nav a { color: #fff; text-decoration: none; font-weight: bold; }
+ .container { margin-top: 20px; display: flex; gap: 20px; }
+ .card { background: #fff; padding: 20px; border-radius: 5px; boxshadow: 0 2px 4px rgba(0,0,0,0.1); }
+ .form-card { flex: 1; }
+ .table-card { flex: 2; }
+ form input, form select, form button { width: 100%; padding: 8px;
+margin-bottom: 10px; box-sizing: border-box; }
+ button { background: #28a745; color: #fff; border: none; cursor:
+pointer; border-radius: 3px; font-weight: bold; }
+ button.btn-danger { background: #dc3545; }
+ button.btn-edit { background: #ffc107; color: #000; }
+ table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+ th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+ th { background: #007bff; color: white; }
+ </style>
+</head>
+<body>
+<header>
+ <h2>Admin Dashboard</h2>
+ <!-- Dynamic RBAC Navigation Bar -->
+ <nav><ul id="dynamicMenu"></ul></nav>
+ <!-- Role Switcher -->
+ <div>
+ <label>Role: </label>
+ <select id="roleSelector" onchange="loadMenu()">
+ <option value="user">User</option>
+ <option value="editor">Editor</option>
+ <option value="admin" selected>Admin</option>
+ </select>
+ </div>
+</header>
+<div class="container">
+    <!-- Item Form (Create / Update) -->
+ <div class="card form-card">
+ <h3 id="formTitle">Add Item</h3>
+ <form id="itemForm" onsubmit="saveItem(event)">
+ <input type="hidden" id="itemId">
+ <input type="text" id="itemName" placeholder="Item Name"
+required>
+ <input type="text" id="itemCategory" placeholder="Category"
+required>
+ <input type="number" step="0.01" id="itemPrice"
+placeholder="Price" required>
+ <button type="submit" id="submitBtn">Save Item</button>
+ <button type="button" id="cancelBtn" onclick="resetForm()"
+style="display:none; background:#6c757d; margin-top:5px;">Cancel</button>
+ </form>
+ </div>
+ <!-- Data Table -->
+ <div class="card table-card">
+ <h3>Inventory List</h3>
+ <table>
+ <thead>
+ <tr>
+ <th>ID</th>
+<th>Name</th>
+<th>Category</th>
+<th>Price</th>
+<th>Actions</th>
+ </tr>
+ </thead>
+ <tbody id="itemsTableBody"></tbody>
+ </table>
+ </div>
+</div>
+<script>
+ const API_URL = 'api.php';
+ document.addEventListener('DOMContentLoaded', () => {
+ loadMenu();
+ loadItems();
+ });
+ // 1. Load Dynamic Menu according to Role (RBAC)
+ async function loadMenu() {
+ const role = document.getElementById('roleSelector').value;
+ const res = await fetch(`${API_URL}?action=get_menu&role=${role}`);
+ const result = await res.json();
+ const menuUl = document.getElementById('dynamicMenu');
+ menuUl.innerHTML = '';
+
+ if (result.status === 'success') {
+ result.data.forEach(item => {
+ menuUl.innerHTML += `<li><a
+href="${item.link}">${item.title}</a></li>`;
+ });
+ }
+ }
+ // 2. Fetch All Items (Read)
+ async function loadItems() {
+ const res = await fetch(`${API_URL}?action=read`);
+ const result = await res.json();
+
+ const tbody = document.getElementById('itemsTableBody');
+ tbody.innerHTML = '';
+ if (result.status === 'success') {
+ result.data.forEach(item => {
+ tbody.innerHTML += `
+ <tr>
+ <td>${item.id}</td>
+<td>${item.name}</td>
+<td>${item.category}</td>
+<td>$${parseFloat(item.price).toFixed(2)}</td>
+ <td>
+ <button class="btn-edit"
+onclick="editItem(${item.id}, '${item.name}', '${item.category}',
+${item.price})">Edit</button>
+ <button class="btn-danger"
+onclick="deleteItem(${item.id})">Delete</button>
+ </td>
+ </tr>
+ `;
+ });
+ }
+ }
+ // 3. Create / Update Item
+ async function saveItem(event) {
+ event.preventDefault();
+
+ const id = document.getElementById('itemId').value;
+ const name = document.getElementById('itemName').value;
+ const category = document.getElementById('itemCategory').value;
+ const price = document.getElementById('itemPrice').value;
+ const action = id ? 'update' : 'create';
+ const payload = { id, name, category, price };
+ const res = await fetch(`${API_URL}?action=${action}`, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify(payload)
+ });
+ const result = await res.json();
+ if (result.status === 'success') {
+ resetForm();
+ loadItems();
+ } else {
+ alert(result.message);
+ }
+ }
+ // 4. Populate Form for Edit
+ function editItem(id, name, category, price) {
+ document.getElementById('itemId').value = id;
+ document.getElementById('itemName').value = name;
+ document.getElementById('itemCategory').value = category;
+ document.getElementById('itemPrice').value
+  document.getElementById('formTitle').innerText = 'Edit Item';
+ document.getElementById('submitBtn').innerText = 'Update Item';
+ document.getElementById('cancelBtn').style.display = 'block';
+ }
+ // 5. Delete Item
+ async function deleteItem(id) {
+ if (!confirm('Are you sure you want to delete this item?')) return;
+ const res = await fetch(`${API_URL}?action=delete`, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ id })
+ });
+ const result = await res.json();
+ if (result.status === 'success') {
+ loadItems();
+ } else {
+ alert(result.message);
+ }
+ }
+ // Reset Form
+ function resetForm() {
+ document.getElementById('itemId').value = '';
+ document.getElementById('itemForm').reset();
+ document.getElementById('formTitle').innerText = 'Add Item';
+ document.getElementById('submitBtn').innerText = 'Save Item';
+ document.getElementById('cancelBtn').style.display = 'none';
+ }
+</script>
+</body>
+</html>
